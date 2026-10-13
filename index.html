@@ -1,0 +1,82 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16a34a"><link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="1% Better"><title>1% Better</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#111827;--mu:#6b7280;--ac:#16a34a;--bd:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--tx:#f3f4f6;--mu:#9ca3af;--bd:#2a2f38}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;gap:10px;max-width:560px;margin:auto;padding:12px 12px 0}header b{flex:1;font-size:18px}
+main{max-width:560px;margin:auto;padding:12px 12px 60px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 14px}
+.big{font-size:46px;font-weight:700;line-height:1.1}.ok{color:var(--ac)}.mu{color:var(--mu);font-size:14px}
+.bar{height:10px;background:var(--bd);border-radius:6px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--ac)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}
+input{font:inherit;color:var(--tx)}input[type=number]{width:76px;text-align:center;padding:8px 4px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+input.nm{width:100%;border:0;border-bottom:1px dashed var(--bd);background:transparent;padding:6px 0}
+summary{display:flex;justify-content:space-between;font-weight:600;cursor:pointer;list-style:none}
+.ex{padding:8px 0;border-top:1px solid var(--bd);margin-top:8px}.sets{display:flex;gap:6px;margin-top:6px}.sets input{flex:1;width:0}
+.chk{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.chk .on{background:var(--ac);color:#fff;border-color:var(--ac)}
+dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);width:min(92vw,420px)}dialog input[type=text],dialog input[type=password]{width:100%;padding:8px;margin:4px 0 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg)}
+</style></head><body>
+<header><b>1% Better</b><span id="st" class="mu"></span><button id="gear" aria-label="Settings">⚙</button></header>
+<main id="app"></main>
+<dialog id="dlg"><form method="dialog"><b>Google Sheets connection</b><p class="mu">Paste the Web app URL and the token you set in Code.gs.</p>
+<label class="mu">Web app URL</label><input type="text" id="u"><label class="mu">Token</label><input type="password" id="tk">
+<label class="row"><span>On rest days, keep last active day's score as the target</span><input type="checkbox" id="cf"></label>
+<div class="row"><button value="x">Cancel</button><button id="sv" value="ok">Save</button></div></form></dialog>
+<script>
+const $=s=>document.querySelector(s),LS='onepct.v1';
+const CARDIO=[['med','Meditation'],['run','Run'],['walkM','Walk · Morning'],['walkA','Walk · Afternoon'],['walkN','Walk · Night'],['stretch','Stretching'],['cool','Cooldown']];
+const GROUPS=['Chest','Triceps','Back','Biceps','Legs','Shoulder','Abs'];
+const CHECKS=[['rg','Reviewed Goal'],['ns','New Story'],['rs','Reviewed Story'],['ms','Modified Story']];
+let S=JSON.parse(localStorage.getItem(LS)||'{}');S.data=S.data||{};S.pend=S.pend||{};S.cfg=S.cfg||{url:'',token:'',carry:false};
+const save=()=>localStorage.setItem(LS,JSON.stringify(S)),status=t=>$('#st').textContent=t;
+const iso=d=>new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const add=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return iso(x)};
+const f=n=>Math.round(n*100)/100,esc=s=>String(s).replace(/[&"<]/g,c=>({'&':'&amp;','"':'&quot;','<':'&lt;'}[c]));
+let day=iso(new Date());
+const val=(d,k)=>(S.data[d]||{})[k];
+const total=d=>{let t=0;const o=S.data[d]||{};for(const k in o)if(!k.startsWith('chk.'))t+=+o[k]||0;return t};
+function target(d){let p=add(d,-1),t=total(p);if(S.cfg.carry)for(let i=0;i<30&&!t;i++)t=total(p=add(p,-1));return t*1.01}
+const beaten=d=>total(d)>0&&total(d)>target(d);
+function streak(){let d=iso(new Date()),n=0;if(!beaten(d))d=add(d,-1);while(beaten(d)&&n<400){n++;d=add(d,-1)}return n}
+function set(d,k,v){const o=S.data[d]=S.data[d]||{};if(v==='')delete o[k];else o[k]=v;S.pend[d+'|'+k]={d,k,v};save();queue()}
+const num=(k,ph)=>`<input type="number" inputmode="decimal" min="0" data-k="${k}" placeholder="${ph||0}" value="${val(day,k)??''}">`;
+function render(){
+ const isT=day===iso(new Date());
+ let h=`<div class="card nav"><button id="pv">‹</button><div><b>${new Date(day+'T12:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b> ${isT?'':'<button id="td">Today</button>'}</div><button id="nx">›</button></div><div class="card" id="score"></div><div class="card"><b>Daily</b>`;
+ CARDIO.forEach(([k,n])=>h+=`<div class="row"><span>${n}</span>${num(k)}</div>`);
+ h+='</div>';
+ GROUPS.forEach(g=>{const q=g.toLowerCase(),used=Object.keys(S.data[day]||{}).some(k=>k.startsWith(q+'.'));
+  h+=`<div class="card"><details ${used?'open':''}><summary>${g}<span class="mu" data-sub="${q}"></span></summary>`;
+  for(let e=1;e<=4;e++)h+=`<div class="ex"><input class="nm" data-k="name.${q}.${e}" placeholder="Exercise ${e} name" value="${esc((S.data._cfg||{})[`name.${q}.${e}`]||'')}"><div class="sets">${[1,2,3].map(s=>num(`${q}.${e}.${s}`,'Set '+s)).join('')}</div></div>`;
+  h+='</details></div>'});
+ h+=`<div class="card"><b>Daily checks</b><div class="chk">${CHECKS.map(([k,n])=>`<button data-c="chk.${k}" class="${val(day,'chk.'+k)==1?'on':''}">${n}</button>`).join('')}</div></div><div class="card" id="chart"></div>`;
+ $('#app').innerHTML=h;upd()}
+function upd(){
+ const t=total(day),g=target(day),beat=t>0&&t>g;
+ $('#score').innerHTML=`<div class="mu">Today's total</div><div class="big ${beat?'ok':''}">${f(t)}</div><div class="mu">Score to beat: <b>${f(g)}</b> · 🔥 streak ${streak()}</div><div class="bar"><i style="width:${g?Math.min(100,t/g*100):t?100:0}%"></i></div><div style="margin-top:8px">${!t?'Log something to get started':beat?`✅ Beat it by ${f(t-g)}`:`${f(g-t)} to go`}</div>`;
+ document.querySelectorAll('[data-sub]').forEach(e=>{const q=e.dataset.sub;let s=0;const o=S.data[day]||{};for(const k in o)if(k.startsWith(q+'.'))s+=+o[k]||0;e.textContent=s?f(s):''});
+ const ds=[...Array(14)].map((_,i)=>add(day,i-13)),mx=Math.max(1,...ds.map(d=>Math.max(total(d),target(d))));
+ $('#chart').innerHTML=`<b>Last 14 days</b><svg viewBox="0 0 280 100" width="100%">${ds.map((d,i)=>{const h=total(d)/mx*70,y=80-target(d)/mx*70;return `<rect x="${i*20+3}" y="${80-h}" width="14" height="${h}" rx="3" fill="${beaten(d)?'#16a34a':'#9ca3af'}"/><line x1="${i*20+1}" x2="${i*20+19}" y1="${y}" y2="${y}" stroke="#f59e0b" stroke-width="2"/><text x="${i*20+10}" y="94" font-size="8" text-anchor="middle" fill="#9ca3af">${+d.slice(8)}</text>`}).join('')}</svg><div class="mu">Bars = daily total · orange = score to beat</div>`}
+$('#app').addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;k.startsWith('name.')?set('_cfg',k,e.target.value):set(day,k,e.target.value===''?'':+e.target.value);upd()});
+$('#app').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.id==='pv'){day=add(day,-1);render()}else if(b.id==='nx'){day=add(day,1);render()}else if(b.id==='td'){day=iso(new Date());render()}
+ else if(b.dataset.c){const v=val(day,b.dataset.c)==1?0:1;set(day,b.dataset.c,v);b.classList.toggle('on',!!v);upd()}});
+$('#gear').onclick=()=>{$('#u').value=S.cfg.url;$('#tk').value=S.cfg.token;$('#cf').checked=S.cfg.carry;$('#dlg').showModal()};
+$('#sv').onclick=()=>{S.cfg={url:$('#u').value.trim(),token:$('#tk').value.trim(),carry:$('#cf').checked};save();push().then(pull);render()};
+let tm;const queue=()=>{clearTimeout(tm);tm=setTimeout(push,900);status('…')};
+async function push(){const c=S.cfg,items=Object.values(S.pend);if(!c.url){status('Local only · tap ⚙ to connect Sheets');return}if(!items.length)return;
+ try{const r=await fetch(c.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({t:c.token,items})}),j=await r.json();if(j.error)throw j.error;
+  items.forEach(i=>{const k=i.d+'|'+i.k;if(S.pend[k]&&S.pend[k].v===i.v)delete S.pend[k]});save();status('✓ synced')}catch(e){status('⚠ will retry')}}
+async function pull(){const c=S.cfg;if(!c.url)return;
+ try{const r=await fetch(c.url+(c.url.includes('?')?'&':'?')+'t='+encodeURIComponent(c.token)),j=await r.json();if(j.error)throw j.error;
+  j.rows.forEach(([d,k,v])=>{if(S.pend[d+'|'+k]||v==='')return;(S.data[d]=S.data[d]||{})[k]=k.startsWith('name.')?String(v):+v});save();status('✓ synced');render()}catch(e){status('⚠ can’t reach Sheets')}}
+addEventListener('online',()=>push().then(pull));
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+render();push().then(pull);
+</script></body></html>
